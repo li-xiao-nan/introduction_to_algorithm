@@ -1,119 +1,144 @@
 #include <iostream>
 #include <string>
-#include <map>
+#include <algorithm> 
+#include <vector>
 
 using std::string;
-using std::map;
-using std::cout;
-using std::endl;
+using std::vector;
 
-class KmpMatch{
+
+class KmpImpl{
 public:
-	KmpMatch(string& target, string& pattern);
-	void Find();
+
+	void Find(const string& target, const string& pattern);
+	void GenMatchJumpTable(const string& pattern);
+	void PrintMatchIndexs();
+	void PrintPMT();
+
 private:
-	void GeneratePmt();
-	int CaulateMatchSuffix(string sub_pattern);
-	int GetSubPatternMatchCount(string sub_pattern);
-private:
-	string target_;
+	vector<int> match_jump_table_;
 	string pattern_;
-	std::map<string, int> pattern_match_table_;
+	string target_;
+	vector<int> match_resutl_;
 };
 
-KmpMatch::KmpMatch(string& target, string& pattern)
-	: target_(target)
-	, pattern_(pattern){
 
-	GeneratePmt();
-	Find();
-}
+void KmpImpl::Find(const string& target, const string& pattern){
+	target_ = target;
+	pattern_ = pattern;
+	match_jump_table_.resize(pattern_.length() + 1);
 
-void KmpMatch::GeneratePmt(){
-	int pattern_len = pattern_.length();
-	int sub_pattern_len = 2;
-	cout<<"====== Pattern Match Table ======"<<endl;
-	// info output
-	cout<<"SubPattern    ";
-	for(int i = sub_pattern_len - 1; i <= pattern_len; i++){
-		cout<<i<<"    ";
-	}
-	cout<<endl;
-	cout<<"Matched       ";
-	int current_suffix_value = 0;
-	int pre_suffix_value = 0;
-	pattern_match_table_.insert(std::make_pair(pattern_.substr(0, 1), 0));
-	std::cout<<0<<"    ";
-	for(; sub_pattern_len <= pattern_len; sub_pattern_len++){
-		string sub_pattern = pattern_.substr(0, sub_pattern_len);
-		if(pattern_[pre_suffix_value] == pattern_[sub_pattern_len-1]){
-			current_suffix_value = pre_suffix_value + 1;
-		}else{
-			current_suffix_value = 0;
+	GenMatchJumpTable(pattern_);
+	PrintPMT();
+	
+	// beging to find 
+	int target_len = target_.length();
+	int pattern_len = pattern_.length(); 
+	int begin_match_index = 0;
+	while(begin_match_index < target_len - pattern_len){
+
+		int next_forward_step = 1;
+		int matched_chars_count = 0;
+		for(int j = 0; j < pattern_len; j++){
+			char target_char = target_[begin_match_index + j];
+			char pattern_char = pattern_[j];
+			bool matched = false;
+			if(target_char == pattern_char){
+				matched_chars_count++;
+				matched = matched_chars_count == pattern_len;
+			}
+			
+			if(matched){
+				match_resutl_.push_back(begin_match_index);
+			}
+
+			if(target_char != pattern_char || matched){
+				next_forward_step = match_jump_table_[matched_chars_count];
+				std::cout<<"matched_chars_count:"<<matched_chars_count<<"; next_forward_step:"<<next_forward_step<<std::endl;
+				break;
+			}
+			
 		}
-		pattern_match_table_.insert(std::make_pair(sub_pattern, current_suffix_value));
-		pre_suffix_value = current_suffix_value;
-		std::cout<<current_suffix_value<<"    ";
+
+		begin_match_index += next_forward_step;
 	}
-	std::cout<<endl;
+
 }
 
-int KmpMatch::CaulateMatchSuffix(string sub_pattern){
-	/*
-	int sub_pattern_len = sub_pattern.length();
-	for(int i = 1; i <= sub_pattern_len; i++){
-		int sub_sub_string_len = sub_pattern_len - i;
-		string presuffix = sub_pattern.substr(0, sub_sub_string_len);
-		string suffix = sub_pattern.substr(i, sub_sub_string_len);
-		if(presuffix == suffix){
-			return sub_sub_string_len;
+void KmpImpl::GenMatchJumpTable(const string& pattern){
+	int pattern_len = pattern.length();
+	string sub_pattern = "";
+	for(int sub_pattern_len = 0; sub_pattern_len <= pattern_len; sub_pattern_len++){
+		sub_pattern = pattern.substr(0, sub_pattern_len);
+		std::cout<<"sub_pattern_len:"<<sub_pattern_len<<std::endl;
+		if(sub_pattern_len == 0 || sub_pattern_len == 1){
+			match_jump_table_[sub_pattern_len] = 1;
+			continue;
 		}
+
+		// max sub_pattern of the pattern's suffix
+		int max_pattern_suffix = 0;
+		for(int j = sub_pattern_len-1; j >= 1; j--){
+			// sub_pattern_prefix --> [0,k] k<sub_pattern_len-1;
+			// sub_pattern_suffix --> [k,sub_pattern_len-1] k>0; 
+			string sub_pattern_prefix = sub_pattern.substr(0, j);
+			string sub_pattern_suffix = sub_pattern.substr(sub_pattern_len - j, sub_pattern_len);
+			std::cout<<"prefix:"<<sub_pattern_prefix<<"; "<<"suffix:"<<sub_pattern_suffix<<std::endl;
+			if(sub_pattern_prefix == sub_pattern_suffix){
+				max_pattern_suffix = j;
+				break;	
+			}
+		} // for(int j = sub_pattern_len-1; j >= 1; j--)
+
+		match_jump_table_[sub_pattern_len] = sub_pattern_len - max_pattern_suffix;
+
+	} //for(int i = 0; i < pattern_len; i++)
+
+}
+
+void KmpImpl::PrintPMT(){
+	int length = match_jump_table_.size();
+	string separator = "  ";
+	for(int i = 0; i < length; i++){
+		std::cout<<i<<separator;
 	}
-	return 0;
-	*/
+	std::cout<<std::endl;
 
+	for(int i = 0; i < length; i++){
+		std::cout<<match_jump_table_[i]<<separator;
+	}
+
+	std::cout<<std::endl;
 }
 
-int KmpMatch::GetSubPatternMatchCount(string sub_pattern){
-	return pattern_match_table_[sub_pattern];
-}
-
-void KmpMatch::Find(){
-	cout<<"begin to find......"<<endl;
-	std::cout<<"Target: "<< target_<<std::endl;
+void KmpImpl::PrintMatchIndexs(){
+	
+	string separator = " ";
 	std::cout<<"Pattern:"<<pattern_<<std::endl;
 	int target_len = target_.length();
 	int pattern_len = pattern_.length();
-	for(int i = 0; i < (target_len - pattern_len) + 1; ){
-		int j = 0;
-		for(; j < pattern_len; j++){
-			if(target_[i + j] != pattern_[j]){
-				int match_count  = j ;
-				if(j == 0){
-					i++;
-				}else{
-					string match_string = pattern_.substr(0,match_count);
-					std::cout<<"match_string:"<<match_string<<std::endl;
-					int pre_suffix_match_count = GetSubPatternMatchCount(match_string);
-					int forward_count = match_count - pre_suffix_match_count;
-					std::cout<<"forward_count:"<<forward_count<<std::endl;
-					i += forward_count;
-				}
-				break;
-			}
-		}
-		if(j == pattern_len){
-			cout<<"match pattern, index:"<<i+1<<std::endl;
-			string match_string = pattern_.substr(0, j);
-			int pre_suffix_match_count = GetSubPatternMatchCount(match_string);
-			int forward_count = pattern_len - pre_suffix_match_count;
-			i += forward_count;
+	for(int i = 0; i < target_len; i++){
+		std::cout<<target_[i]<<separator;
+	}
+	std::cout<<std::endl;
+
+	for(int i = 0; i < target_len; i++){
+		const std::vector<int>::iterator iter = std::find(match_resutl_.begin(), match_resutl_.end(), i);
+		if(iter != match_resutl_.end()){
+			std::cout<<"^"<<separator;
+		}else{
+			std::cout<<separator<<separator;
 		}
 	}
+
+	std::cout<<std::endl;
 }
 
-int main(){
-	string pattern = "ababaca";
-	string target = "abcababcababaca";
-	KmpMatch kmpMatch(target, pattern);
+int main(int argc, char** argv){
+
+	string target = "dbcababdabeababbabfg";
+	string pattern = "aba";
+	KmpImpl kmp;
+	kmp.Find(target, pattern);
+	kmp.PrintMatchIndexs();
 }
